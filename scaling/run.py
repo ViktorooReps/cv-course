@@ -14,7 +14,10 @@ def check_test(data_dir):
     with open(join(output_dir, 'output_seams'), 'rb') as fout, \
          open(join(gt_dir, 'seams'), 'rb') as fgt:
         for i in range(8):
-            if load(fout) == load(fgt):
+            fout_loaded = load(fout)
+            fgt_loaded = load(fgt)
+            print(f'accuracy for {i}: {len([x for x, y in zip(fout_loaded, fgt_loaded) if x == y]) / len(fout_loaded)}, avg error: {sum([abs(x[0] - y[0]) + abs(x[1] - y[1]) for x, y in zip(fout_loaded, fgt_loaded)]) / len(fout_loaded)}, staring point: {fout_loaded[0]} (needed: {fgt_loaded[0]}), end point: {fout_loaded[-1]} (needed: {fgt_loaded[-1]})')
+            if fout_loaded == fgt_loaded:
                 correct += 1
     res = 'Ok %d/8' % correct
     if environ.get('CHECKER'):
@@ -62,6 +65,7 @@ def run_single_test(data_dir, output_dir):
         for m in (None, mask):
             for direction in ('shrink', 'expand'):
                 for orientation in ('horizontal', 'vertical'):
+                    print(orientation + ' ' + direction)
                     seam = seam_carve(img, orientation + ' ' + direction,
                                       mask=m)[2]
                     dump(get_seam_coords(seam), fhandle)
