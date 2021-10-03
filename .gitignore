@@ -1,0 +1,6 @@
+/*/public_tests/
+/*/tests/
+/lectures/
+venv/
+/.vscode/
+/.mypy_cache/
