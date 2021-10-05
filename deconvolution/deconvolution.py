@@ -2,7 +2,7 @@ from typing import Tuple, List
 
 import numpy as np
 from numpy.typing import NDArray
-from numpy.fft import fft, ifft, rfft, rfft2, fft2, ifft2
+from numpy.fft import fft2, ifft2
 
 
 def gaussian_kernel(size: int, sigma: float) -> NDArray:
