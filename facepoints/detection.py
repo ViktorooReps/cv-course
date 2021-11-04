@@ -62,7 +62,7 @@ class Detector(nn.Module):
         return 'l' + str(layer_position) + '_' + layer_type
 
 
-class ImageDirDataset(Dataset[Tuple[Tensor, np.ndarray, str]]):
+class ImageDirDataset(Dataset):
 
     def __init__(self, dirname: str, coords: Dict[str, np.ndarray] = None, image_size: int = 64, num_coords: int = 28, shuffle: bool = False):
         self._dirname = dirname
