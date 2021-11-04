@@ -4,3 +4,4 @@
 venv/
 /.vscode/
 /.mypy_cache/
+/panorama/imgs/
