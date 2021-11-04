@@ -23,6 +23,66 @@ AnyLayer = Union[nn.Conv2d, nn.ReLU, nn.MaxPool2d, nn.Linear, nn.BatchNorm2d]
 logger = logging.Logger(__name__)
 
 
+img_size = 64
+architecture = [
+    ('batchnorm', {
+        'num_features': 3
+    }),
+    ('conv', {
+        'in_channels': 3,
+        'out_channels': 64,
+        'kernel_size': (3, 3),
+        'padding': 1
+    }),
+    ('relu', {}),
+    ('maxpooling', {
+        'kernel_size': (2, 2)
+    }),
+
+    ('batchnorm', {
+        'num_features': 64
+    }),
+    ('conv', {
+        'in_channels': 64,
+        'out_channels': 128,
+        'kernel_size': (3, 3),
+        'padding': 1
+    }),
+    ('relu', {}),
+    ('maxpooling', {
+        'kernel_size': (2, 2)
+    }),
+
+    ('batchnorm', {
+        'num_features': 128
+    }),
+    ('conv', {
+        'in_channels': 128,
+        'out_channels': 256,
+        'kernel_size': (3, 3),
+        'padding': 1
+    }),
+    ('relu', {}),
+    ('maxpooling', {
+        'kernel_size': (2, 2)
+    }),
+
+    ('batchnorm', {
+        'num_features': 256
+    }),
+    ('flatten', {}),
+    ('linear', {
+        'in_features': 256 * ((img_size // 8) ** 2),
+        'out_features': 64
+    }),
+    ('relu', {}),
+    ('linear', {
+        'in_features': 64,
+        'out_features': 28
+    })
+]
+
+
 def pad_to_square(matrix: np.ndarray) -> np.ndarray:
     h, w = matrix.shape
     if h > w:
@@ -40,13 +100,13 @@ class Detector(nn.Module):
         'maxpooling': nn.MaxPool2d,
         'linear': nn.Linear,
         'batchnorm': nn.BatchNorm2d,
-        'flatten': lambda: partial(torch.flatten, start_dim=1)
+        'flatten': nn.Flatten
     }
 
-    def __init__(self, architecture: List[Tuple[str, dict]]):
+    def __init__(self, model_architecture: List[Tuple[str, dict]]):
         super().__init__()
-        self._layers: list = [None] * len(architecture)
-        for idx, (layer_type, params) in enumerate(architecture):
+        self._layers: list = [None] * len(model_architecture)
+        for idx, (layer_type, params) in enumerate(model_architecture):
             layer = self._type2class_layer[layer_type](**params)
             self.__setattr__(self._get_layer_name(layer_type, idx), layer)
             self._layers[idx] = layer
@@ -132,107 +192,70 @@ class ImageDirDataset(Dataset):
         return features, coords, filenames
 
 
+def train_one_epoch(model: nn.Module, loss_func: nn.Module, dataloader: DataLoader, optimizer: optim.Optimizer) -> float:
+    losses = []
+    for features, coords, filenames in dataloader:
+        optimizer.zero_grad()
+        pred_coords = model(features)
+        loss: Tensor = loss_func(pred_coords, coords)
+        loss.backward()
+        optimizer.step()
+
+        losses.append(loss.detach().cpu())
+
+    return np.mean(losses)[0]
+
+
 def train_detector(true_coords: Dict[str, np.ndarray], train_data_dir: str, fast_train: bool = False) -> Detector:
     if fast_train:
-        device = 'cpu'
         epochs = 1
+        device = 'cpu'
     else:
-        epochs = 10
+        epochs = 20
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
 
     print(f'Training on {device}')
 
     batch_size = 256
-    img_size = 64
     optim_params = {
         'lr': 0.001,
         'betas': (0.9, 0.999),
         'weight_decay': 0
     }
 
-    train_dataset = ImageDirDataset(train_data_dir, true_coords, image_size=64, shuffle=True)
+    train_dataset = ImageDirDataset(train_data_dir, true_coords, image_size=img_size, shuffle=True)
     train_dataloader = DataLoader(train_dataset, collate_fn=ImageDirDataset.collate_fn, batch_size=batch_size, shuffle=True, num_workers=4)
 
-    model = Detector([
-        ('batchnorm', {
-            'num_features': 3
-        }),
-        ('conv', {
-            'in_channels': 3,
-            'out_channels': 64,
-            'kernel_size': (3, 3),
-            'padding': 1
-        }),
-        ('relu', {}),
-        ('maxpooling', {
-            'kernel_size': (2, 2)
-        }),
-
-        ('batchnorm', {
-            'num_features': 64
-        }),
-        ('conv', {
-            'in_channels': 64,
-            'out_channels': 128,
-            'kernel_size': (3, 3),
-            'padding': 1
-        }),
-        ('relu', {}),
-        ('maxpooling', {
-            'kernel_size': (2, 2)
-        }),
-
-        ('batchnorm', {
-            'num_features': 128
-        }),
-        ('conv', {
-            'in_channels': 128,
-            'out_channels': 256,
-            'kernel_size': (3, 3),
-            'padding': 1
-        }),
-        ('relu', {}),
-        ('maxpooling', {
-            'kernel_size': (2, 2)
-        }),
-
-        ('batchnorm', {
-            'num_features': 256
-        }),
-        ('flatten', {}),
-        ('linear', {
-            'in_features': 256 * ((img_size // 8) ** 2),
-            'out_features': 64
-        }),
-        ('relu', {}),
-        ('linear', {
-            'in_features': 64,
-            'out_features': 28
-        })
-    ])
+    model = Detector(architecture)
+    if fast_train:  # TODO: delete
+        return model
 
     loss_func = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
     model.train()
     for epoch in range(epochs):
-        losses = []
-        for features, coords, filenames in tqdm(train_dataloader, desc=f'Training epoch {epoch}', leave=False):
-            optimizer.zero_grad()
-            pred_coords = model(features)
-            loss: Tensor = loss_func(pred_coords, coords)
-            loss.backward()
-            optimizer.step()
-
-            losses.append(loss.detach().cpu())
-
-        print(f'{epoch}: [loss]{np.mean(losses)}')
+        loss = train_one_epoch(model, loss_func, train_dataloader, optimizer)
+        print(f'{epoch}: [loss]{loss}')
 
     return model
 
 
 def detect(model_filename: str, data_dir: str) -> Dict[str, np.ndarray]:
-    pass
+    model = Detector(architecture)
+    model.load_state_dict(torch.load(model_filename))
+    ds = ImageDirDataset(data_dir)
+
+    batch_size = 256
+    dataloader = DataLoader(ds, collate_fn=ImageDirDataset.collate_fn, batch_size=batch_size, shuffle=False)
+
+    res = {}
+    for features, _, filenames in dataloader:
+        pred_coords = model(features)
+        for filename, coords in zip(filenames, pred_coords):
+            res[filename] = coords.detach().cpu().numpy()
+
+    return res
 
 
 def read_coords_from_csv(csv_filename: str) -> Dict[str, np.ndarray]:
@@ -249,5 +272,5 @@ def read_coords_from_csv(csv_filename: str) -> Dict[str, np.ndarray]:
 if __name__ == '__main__':
     gold_coords = read_coords_from_csv('public_tests/00_test_img_input/train/gt.csv')
     data_directory = 'public_tests/00_test_img_input/train/images'
-    model = train_detector(gold_coords, data_directory)
-    torch.save(model.state_dict(), 'facepoints_model.ckpt')
+    trained_model = train_detector(gold_coords, data_directory)
+    torch.save(trained_model.state_dict(), 'facepoints_model.ckpt')
