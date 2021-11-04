@@ -1,5 +1,6 @@
 import logging
 import random
+from functools import partial
 from os import listdir
 from os.path import join, isfile
 from typing import Tuple, Dict, List, Union, Type, Iterator
@@ -17,7 +18,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 Coord = Tuple[int, int]
-AnyLayer = Union[nn.Conv2d, nn.ReLU, nn.MaxPool2d, nn.Linear, nn.BatchNorm2d, nn.Flatten]
+AnyLayer = Union[nn.Conv2d, nn.ReLU, nn.MaxPool2d, nn.Linear, nn.BatchNorm2d]
 
 logger = logging.Logger(__name__)
 
@@ -39,7 +40,7 @@ class Detector(nn.Module):
         'maxpooling': nn.MaxPool2d,
         'linear': nn.Linear,
         'batchnorm': nn.BatchNorm2d,
-        'flatten': nn.Flatten
+        'flatten': lambda: partial(torch.flatten, start_dim=1)
     }
 
     def __init__(self, architecture: List[Tuple[str, dict]]):
