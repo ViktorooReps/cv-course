@@ -203,7 +203,7 @@ def train_one_epoch(model: nn.Module, loss_func: nn.Module, dataloader: DataLoad
 
         losses.append(loss.detach().cpu())
 
-    return np.mean(losses)[0]
+    return np.mean(losses)
 
 
 def train_detector(true_coords: Dict[str, np.ndarray], train_data_dir: str, fast_train: bool = False) -> Detector:
@@ -224,7 +224,7 @@ def train_detector(true_coords: Dict[str, np.ndarray], train_data_dir: str, fast
     }
 
     train_dataset = ImageDirDataset(train_data_dir, true_coords, image_size=img_size, shuffle=True)
-    train_dataloader = DataLoader(train_dataset, collate_fn=ImageDirDataset.collate_fn, batch_size=batch_size, shuffle=True, num_workers=4)
+    train_dataloader = DataLoader(train_dataset, collate_fn=ImageDirDataset.collate_fn, batch_size=batch_size, shuffle=True, num_workers=8)
 
     model = Detector(architecture)
     if fast_train:  # TODO: delete
@@ -247,7 +247,7 @@ def detect(model_filename: str, data_dir: str) -> Dict[str, np.ndarray]:
     ds = ImageDirDataset(data_dir)
 
     batch_size = 256
-    dataloader = DataLoader(ds, collate_fn=ImageDirDataset.collate_fn, batch_size=batch_size, shuffle=False)
+    dataloader = DataLoader(ds, collate_fn=ImageDirDataset.collate_fn, batch_size=batch_size, num_workers=8, shuffle=False)
 
     res = {}
     for features, _, filenames in dataloader:
