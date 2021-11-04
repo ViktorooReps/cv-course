@@ -8,7 +8,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 from pandas import DataFrame
 from skimage import io
 from skimage.color import gray2rgb
@@ -23,7 +22,7 @@ AnyLayer = Union[nn.Conv2d, nn.ReLU, nn.MaxPool2d, nn.Linear, nn.BatchNorm2d, nn
 logger = logging.Logger(__name__)
 
 
-def pad_to_square(matrix: NDArray) -> NDArray:
+def pad_to_square(matrix: np.ndarray) -> np.ndarray:
     h, w = matrix.shape
     if h > w:
         padding = ((0, 0), (0, h - w))
@@ -62,16 +61,16 @@ class Detector(nn.Module):
         return 'l' + str(layer_position) + '_' + layer_type
 
 
-class ImageDirDataset(Dataset[Tuple[Tensor, NDArray, str]]):
+class ImageDirDataset(Dataset[Tuple[Tensor, np.ndarray, str]]):
 
-    def __init__(self, dirname: str, coords: Dict[str, NDArray] = None, image_size: int = 64, num_coords: int = 28, shuffle: bool = False):
+    def __init__(self, dirname: str, coords: Dict[str, np.ndarray] = None, image_size: int = 64, num_coords: int = 28, shuffle: bool = False):
         self._dirname = dirname
         self._image_size = image_size
         self._filenames = [f for f in listdir(dirname) if isfile(join(dirname, f))]
         self._coords = coords.copy() if coords is not None else {
             filename: np.zeros(num_coords) for filename in self._filenames
         }
-        self._transformed_coords: Dict[str, NDArray] = {}
+        self._transformed_coords: Dict[str, np.ndarray] = {}
 
         if shuffle:
             random.shuffle(self._filenames)
@@ -79,10 +78,10 @@ class ImageDirDataset(Dataset[Tuple[Tensor, NDArray, str]]):
     def __len__(self) -> int:
         return len(self._filenames)
 
-    def __iter__(self) -> Iterator[Tuple[Tensor, NDArray, str]]:
+    def __iter__(self) -> Iterator[Tuple[Tensor, np.ndarray, str]]:
         yield from zip(map(self._image_reader, self._filenames), map(self._coords_getter, self._filenames), self._filenames)
 
-    def __getitem__(self, index) -> Tuple[Tensor, NDArray, str]:
+    def __getitem__(self, index) -> Tuple[Tensor, np.ndarray, str]:
         img_filename = self._filenames[index]
         return self._image_reader(img_filename), self._coords_getter(img_filename), img_filename
 
@@ -108,7 +107,7 @@ class ImageDirDataset(Dataset[Tuple[Tensor, NDArray, str]]):
         stacked = np.stack([rescaled_red, rescaled_green, rescaled_blue])
         return torch.tensor(stacked, dtype=torch.float, requires_grad=False)
 
-    def _coords_getter(self, img_filename: str) -> NDArray:
+    def _coords_getter(self, img_filename: str) -> np.ndarray:
         if img_filename in self._transformed_coords:
             return self._transformed_coords[img_filename]
         else:
@@ -116,7 +115,7 @@ class ImageDirDataset(Dataset[Tuple[Tensor, NDArray, str]]):
             return self._coords[img_filename]
 
     @staticmethod
-    def collate_fn(items: List[Tuple[Tensor, NDArray, str]]):
+    def collate_fn(items: List[Tuple[Tensor, np.ndarray, str]]):
         features = []
         coords = []
         filenames = []
@@ -132,7 +131,7 @@ class ImageDirDataset(Dataset[Tuple[Tensor, NDArray, str]]):
         return features, coords, filenames
 
 
-def train_detector(true_coords: Dict[str, NDArray], train_data_dir: str, fast_train: bool = False) -> Detector:
+def train_detector(true_coords: Dict[str, np.ndarray], train_data_dir: str, fast_train: bool = False) -> Detector:
     if fast_train:
         device = 'cpu'
         epochs = 1
@@ -231,11 +230,11 @@ def train_detector(true_coords: Dict[str, NDArray], train_data_dir: str, fast_tr
     return model
 
 
-def detect(model_filename: str, data_dir: str) -> Dict[str, NDArray]:
+def detect(model_filename: str, data_dir: str) -> Dict[str, np.ndarray]:
     pass
 
 
-def read_coords_from_csv(csv_filename: str) -> Dict[str, NDArray]:
+def read_coords_from_csv(csv_filename: str) -> Dict[str, np.ndarray]:
     coord_df: DataFrame = pd.read_csv(csv_filename)
     res = {}
     for idx, row in coord_df.iterrows():
