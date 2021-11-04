@@ -139,7 +139,7 @@ def train_detector(true_coords: Dict[str, np.ndarray], train_data_dir: str, fast
         epochs = 10
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
 
-    logger.info(f'Training on {device}')
+    print(f'Training on {device}')
 
     batch_size = 256
     img_size = 64
@@ -225,7 +225,7 @@ def train_detector(true_coords: Dict[str, np.ndarray], train_data_dir: str, fast
 
             losses.append(loss.detach().cpu())
 
-        logger.info(f'{epoch}: [loss]{np.mean(losses)}')
+        print(f'{epoch}: [loss]{np.mean(losses)}')
 
     return model
 
