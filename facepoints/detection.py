@@ -194,6 +194,7 @@ class ImageDirDataset(Dataset):
 
 def train_one_epoch(model: nn.Module, loss_func: nn.Module, dataloader: DataLoader, optimizer: optim.Optimizer) -> float:
     losses = []
+    model.train()
     for features, coords, filenames in dataloader:
         optimizer.zero_grad()
         pred_coords = model(features)
@@ -206,12 +207,23 @@ def train_one_epoch(model: nn.Module, loss_func: nn.Module, dataloader: DataLoad
     return np.mean(losses)
 
 
+def eval(model: nn.Module, score_func: nn.Module, dataloader: DataLoader) -> float:
+    scores = []
+    model.eval()
+    for features, coords, filenames in dataloader:
+        pred_coords = model(features)
+        score: Tensor = score_func(pred_coords, coords)
+        scores.append(score.detach().cpu())
+
+    return np.mean(scores)
+
+
 def train_detector(true_coords: Dict[str, np.ndarray], train_data_dir: str, fast_train: bool = False) -> Detector:
     if fast_train:
         epochs = 1
         device = 'cpu'
     else:
-        epochs = 20
+        epochs = 5
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
 
     print(f'Training on {device}')
@@ -224,7 +236,7 @@ def train_detector(true_coords: Dict[str, np.ndarray], train_data_dir: str, fast
     }
 
     train_dataset = ImageDirDataset(train_data_dir, true_coords, image_size=img_size, shuffle=True)
-    train_dataloader = DataLoader(train_dataset, collate_fn=ImageDirDataset.collate_fn, batch_size=batch_size, shuffle=True, num_workers=8)
+    train_dataloader = DataLoader(train_dataset, collate_fn=ImageDirDataset.collate_fn, batch_size=batch_size, shuffle=True, num_workers=4)
 
     model = Detector(architecture)
     if fast_train:  # TODO: delete
@@ -244,10 +256,10 @@ def train_detector(true_coords: Dict[str, np.ndarray], train_data_dir: str, fast
 def detect(model_filename: str, data_dir: str) -> Dict[str, np.ndarray]:
     model = Detector(architecture)
     model.load_state_dict(torch.load(model_filename))
-    ds = ImageDirDataset(data_dir)
+    ds = ImageDirDataset(data_dir, shuffle=False)
 
     batch_size = 256
-    dataloader = DataLoader(ds, collate_fn=ImageDirDataset.collate_fn, batch_size=batch_size, num_workers=8, shuffle=False)
+    dataloader = DataLoader(ds, collate_fn=ImageDirDataset.collate_fn, batch_size=batch_size, num_workers=4, shuffle=False)
 
     res = {}
     for features, _, filenames in dataloader:
